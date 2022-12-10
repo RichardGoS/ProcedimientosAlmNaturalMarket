@@ -1,116 +1,6 @@
-# ===================================================================================bodega==========================================================================================================
-
-# ==============================================================================================================================================================================================
-# @date 20/05/2022
-# @Descripcion 
-DROP PROCEDURE IF EXISTS obtenerItemsPromocionVentasPorProductoMayorAFechaInventario;
-
-DELIMITER $$
-CREATE PROCEDURE obtenerItemsPromocionVentasPorProductoMayorAFechaInventario(IN product_id INT, IN fecha_inventario datetime, OUT ventas VARCHAR(5000))
-
-BEGIN
-	DECLARE id_venta INTEGER;
-    DECLARE venta varchar(200);
-    DECLARE var_final INTEGER DEFAULT 0;
-	DECLARE cursor1 CURSOR FOR SELECT id FROM venta WHERE fecha > fecha_inventario;
-    DECLARE CONTINUE HANDLER FOR NOT FOUND SET var_final = 1;
-    
-    OPEN cursor1;
-    FETCH cursor1 INTO id_venta;
-    set ventas = '';
-    
-    while var_final !=1 do
-        
-        
-        set ventas := CONCAT(ventas,  ',');
-        
-        FETCH cursor1 INTO id_venta;
-    
-    end while;
-    
-    CLOSE cursor1;
-    
-END$$
-
-DELIMITER ;
-
-# ==============================================================================================================================================================================================
-# @date 20/05/2022
-# @Descripcion 
-DROP PROCEDURE IF EXISTS obtenerItemPromocionVentaPorPromocionVentaProducto;
-
-DELIMITER $$
-CREATE PROCEDURE obtenerItemPromocionVentaPorPromocionVentaProducto(IN product_id INT, IN promocion_venta_id INT, OUT ventas VARCHAR(5000))
-
-BEGIN
-	DECLARE id_venta INTEGER;
-    DECLARE venta varchar(200);
-    DECLARE var_final INTEGER DEFAULT 0;
-	DECLARE cursor1 CURSOR FOR SELECT id FROM venta WHERE fecha > fecha_inventario;
-    DECLARE CONTINUE HANDLER FOR NOT FOUND SET var_final = 1;
-    
-    OPEN cursor1;
-    FETCH cursor1 INTO id_venta;
-    set ventas = '';
-    
-    while var_final !=1 do
-        
-        set ventas := CONCAT(ventas, obtenerItemPromocionVentaPorPromocionVentaProducto(), ',');
-        
-        FETCH cursor1 INTO id_venta;
-    
-    end while;
-    
-    CLOSE cursor1;
-    
-END$$
-
-DELIMITER ;
-
-
-# ==============================================================================================================================================================================================
-# @date 10/02/2022
-# @Descripcion 
-DROP PROCEDURE IF EXISTS obtenerItemsVentasPorProductoMayorAFechaInventario;
-
-DELIMITER $$
-CREATE PROCEDURE obtenerItemsVentasPorProductoMayorAFechaInventario(IN product_id INT, IN fecha_inventario datetime, OUT ventas VARCHAR(5000))
-
-BEGIN
-	DECLARE id_venta INTEGER;
-    DECLARE venta varchar(200);
-    DECLARE var_final INTEGER DEFAULT 0;
-	DECLARE cursor1 CURSOR FOR SELECT id FROM venta WHERE fecha > fecha_inventario;
-    DECLARE CONTINUE HANDLER FOR NOT FOUND SET var_final = 1;
-    
-    OPEN cursor1;
-    FETCH cursor1 INTO id_venta;
-    set ventas = '';
-    
-    while var_final !=1 do
-
-    	SELECT  CONCAT(id, ';', cant_peso, ';', total, ';', venta_id ) INTO venta
-    	FROM item_venta
-    	WHERE venta_id = id_venta;
-        
-        set ventas := CONCAT(ventas, venta, ',');
-        
-        FETCH cursor1 INTO id_venta;
-    
-    end while;
-    
-    CLOSE cursor1;
-    
-END$$
-
-DELIMITER ;
-
-
 # ==============================================================================================================================================================================================
 # ==================================================     --         -- DESARROLLANDO --          --      ===================================================================
 # ==============================================================================================================================================================================================
-
-
 
 
 
@@ -124,15 +14,9 @@ DELIMITER ;
 
 
 
-
-
-
 # ==============================================================================================================================================================================================
 # ==================================================              DESARROLLO                ===================================================================
 # ==============================================================================================================================================================================================
-
-
-
 
 
 
@@ -140,8 +24,132 @@ DELIMITER ;
 # ==================================================              PRODUCCION                ===================================================================
 # ==============================================================================================================================================================================================
 
+# ==============================================================================================================================================================================================
+# ============================================= Rel 1.8 ========================================================================================================
+# ==============================================================================================================================================================================================
+# @date 09/12/2022
+# Version Rel 1.8 RS 008
 
+# ==============================================================================================================================================================================================
+# @date 09/08/2022
+# Version Rel 1.8 RS 008
+# @Descripcion Metodo permite obtener los item ventas con promocion en mes año
+DROP PROCEDURE IF EXISTS obtenerItemsVentaConPromocionEnMesAno;
 
+DELIMITER $$
+CREATE PROCEDURE obtenerItemsVentaConPromocionEnMesAno(IN mes INT, IN ano INT, OUT ventas VARCHAR(5000))
+
+BEGIN
+	DECLARE id_venta INTEGER;
+	DECLARE item varchar(500);
+    DECLARE item_ventas varchar(5000);
+	DECLARE var_final INTEGER DEFAULT 0;
+	DECLARE cursor1 CURSOR FOR SELECT id FROM venta WHERE month(fecha) = mes and year(fecha) = ano;
+	DECLARE CONTINUE HANDLER FOR NOT FOUND SET var_final = 1;
+    
+    OPEN cursor1;
+	FETCH cursor1 INTO id_venta;
+	set ventas = '';
+    
+    #INSERT INTO mensajes_debug VALUES ('#### Inicia obtenerItemsVentaConPromocionEnMesAno ####');
+		
+	while var_final !=1 do
+    
+		if(exists(SELECT  id FROM item_venta WHERE venta_id = id_venta AND promocion_venta_id IS NOT NULL))  THEN
+        
+			call obtenerItemsVentasConPromocion(id_venta, item_ventas);
+        
+			set ventas := CONCAT(ventas, item_ventas);
+        
+        END IF;
+        
+        FETCH cursor1 INTO id_venta;
+        
+    end while;
+		
+	CLOSE cursor1;
+
+END$$
+
+DELIMITER ;
+
+# ==============================================================================================================================================================================================
+# @date 09/08/2022
+# Version Rel 1.8 RS 008
+# @Descripcion Metodo permite obtener los items de las ventas con promocion
+DROP PROCEDURE IF EXISTS obtenerItemsVentasConPromocion;
+
+DELIMITER $$
+CREATE PROCEDURE obtenerItemsVentasConPromocion(IN id_venta INT, OUT ventas VARCHAR(5000))
+
+BEGIN
+	DECLARE id_item_venta INTEGER DEFAULT 0;
+	DECLARE var_final_2 INTEGER DEFAULT 0;
+	DECLARE cursor2 CURSOR FOR SELECT id FROM item_venta WHERE venta_id = id_venta AND promocion_venta_id IS NOT NULL;
+	DECLARE CONTINUE HANDLER FOR NOT FOUND SET var_final_2 = 1;
+    
+    #INSERT INTO mensajes_debug VALUES ('Inicia .. obtenerItemsVentasConPromocion ...');
+    #INSERT INTO mensajes_debug VALUES (id_venta);
+    
+    set id_item_venta = 0;
+    OPEN cursor2;
+	FETCH cursor2 INTO id_item_venta;
+	set ventas = '';
+    
+    while var_final_2 !=1 do
+
+		set ventas := CONCAT(ventas, id_item_venta, ',');
+			
+	FETCH cursor2 INTO id_item_venta;
+		
+	end while;
+
+END$$
+
+DELIMITER ;
+
+# ==============================================================================================================================================================================================
+# @date 01/08/2022
+# Version Rel 1.4 RS 004
+# @Descripcion Metodo permite obtener los items de las ventas realizadas por producto y mes del año
+DROP PROCEDURE IF EXISTS obtenerItemsVentasPorProductoEnMesAno;
+
+DELIMITER $$
+CREATE PROCEDURE obtenerItemsVentasPorProductoEnMesAno(IN product_id INT, IN mes INT, IN ano INT, OUT ventas VARCHAR(5000))
+
+BEGIN
+	DECLARE id_venta INTEGER;
+	DECLARE venta varchar(500);
+	DECLARE var_final INTEGER DEFAULT 0;
+	DECLARE cursor1 CURSOR FOR SELECT id FROM venta WHERE month(fecha) = mes and year(fecha) = ano;
+	DECLARE CONTINUE HANDLER FOR NOT FOUND SET var_final = 1;
+		
+	OPEN cursor1;
+	FETCH cursor1 INTO id_venta;
+	set ventas = '';
+		
+	while var_final !=1 do
+    
+		if(exists(SELECT  id FROM item_venta WHERE venta_id = id_venta AND producto_id = product_id))  THEN
+        
+			SELECT  CONCAT(cant_peso, ';', total ) INTO venta
+			FROM item_venta
+			WHERE venta_id = id_venta AND producto_id = product_id;
+        
+			set ventas := CONCAT(ventas, venta, ',');
+        END IF;
+			
+		FETCH cursor1 INTO id_venta;
+		
+	end while;
+		
+	CLOSE cursor1;
+    
+INSERT INTO mensajes_debug VALUES ('Termina obtenerItemsVentasPorProductoEnMesAno');
+    
+END$$
+
+DELIMITER ;
 
 # ==============================================================================================================================================================================================
 # ============================================= Rel 1.1 ========================================================================================================
@@ -222,8 +230,6 @@ BEGIN
 END$$
 
 DELIMITER ;
-
-
 
 # ==============================================================================================================================================================================================
 # @date 18/05/2022
